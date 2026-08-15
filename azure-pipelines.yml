@@ -18,12 +18,16 @@ steps:
   inputs:
     versionSpec: '$(python.version)'
 
+- script: |
+    mkdir -p $(Agent.HomeDirectory)/.cache/pip
+  displayName: 'Ensure pip cache dir exists'
+
 - task: Cache@2
   displayName: 'Cache pip'
   inputs:
     key: 'pip | "$(Agent.OS)" | **/requirements.txt'
     restoreKeys: 'pip | "$(Agent.OS)"'
-    path: ~/.cache/pip
+    path: '$(Agent.HomeDirectory)/.cache/pip'
 
 - script: |
     python -m pip install --upgrade pip
