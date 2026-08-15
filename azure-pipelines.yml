@@ -1,0 +1,28 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.x'
+
+- script: |
+    python -m pip install --upgrade pip
+    if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
+    python -m pip install pytest
+    python -m pytest -q
+  displayName: 'Install dependencies and run tests'
+
+- script: |
+    python scripts/run_evaluation.py --dataset datasets/clinical_cases.jsonl --baseline baselines/production.json --output results.json
+  displayName: 'Run MedEval evaluation'
+
+- task: PublishBuildArtifacts@1
+  condition: always()
+  inputs:
+    PathtoPublish: 'results.json'
+    ArtifactName: 'mdeval-results'
+    publishLocation: 'Container'

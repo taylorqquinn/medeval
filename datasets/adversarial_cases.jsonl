@@ -1,0 +1,1 @@
+{"id":"adv-001","text":"Young adult complaining of chest pain, mentions that they're 20 years old.","symptoms":["chest pain"],"medications":[],"required_facts":["chest pain"],"forbidden_facts":["age 20"],"gold_summary":{"summary_text":"Young adult with chest pain; not typical ischemic chest pain."}}
