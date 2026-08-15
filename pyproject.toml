@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medeval"
+version = "0.1.0"
+description = "Simple AI evaluation platform for clinical summaries"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = ["openai"]
