@@ -17,6 +17,7 @@ steps:
   displayName: 'Install dependencies and run tests'
 
 - script: |
+    export PYTHONPATH=$(pwd)/src
     python scripts/run_evaluation.py --dataset datasets/clinical_cases.jsonl --baseline baselines/production.json --output results.json
   displayName: 'Run MedEval evaluation'
 
