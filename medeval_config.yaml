@@ -100,14 +100,90 @@ llm:
   
   # OpenAI settings (when client_type='openai')
   openai:
+    # API key source: 'env' (from OPENAI_API_KEY), 'file' (from api_key_file), or 'inline' (from api_key)
+    api_key_source: "env"
+    
+    # Path to API key file (when api_key_source='file')
+    # Example: "C:/Users/YourName/.openai/api_key.txt"
+    api_key_file: null
+    
+    # Inline API key (NOT RECOMMENDED - use environment variable instead)
+    # Only for testing in secure environments
+    api_key: null
+    
+    # Model to use for generation and judging
+    # Options: gpt-4, gpt-4-turbo, gpt-3.5-turbo, gpt-4o, gpt-4o-mini
     model: "gpt-3.5-turbo"
+    
+    # Alternative model for judging (optional - uses main model if not specified)
+    judge_model: null
+    
+    # Temperature (0.0 = deterministic, higher = more creative)
     temperature: 0.0
+    
+    # Maximum tokens for generation
     max_tokens: 256
+    
+    # Maximum tokens for judge responses
+    judge_max_tokens: 8
+    
+    # Organization ID (optional)
+    organization: null
+    
+    # Rate limiting
+    rate_limit:
+      # Enable rate limiting
+      enabled: true
+      
+      # Maximum requests per minute
+      max_requests_per_minute: 60
+      
+      # Maximum tokens per minute (set to null for no limit)
+      max_tokens_per_minute: 90000
+      
+      # Delay between requests in seconds
+      min_delay_seconds: 1.0
+    
+    # Cost tracking
+    cost_tracking:
+      # Enable cost tracking
+      enabled: true
+      
+      # Budget limits (set to null for no limit)
+      max_cost_per_run: 1.0  # Maximum cost in USD per evaluation run
+      max_cost_per_case: 0.05  # Maximum cost in USD per clinical case
+      
+      # Pricing per 1K tokens (update these based on current OpenAI pricing)
+      pricing:
+        gpt-4:
+          input: 0.03
+          output: 0.06
+        gpt-4-turbo:
+          input: 0.01
+          output: 0.03
+        gpt-3.5-turbo:
+          input: 0.0005
+          output: 0.0015
+        gpt-4o:
+          input: 0.005
+          output: 0.015
+        gpt-4o-mini:
+          input: 0.00015
+          output: 0.0006
+      
+      # Save cost reports to artifacts
+      save_cost_report: true
     
   # Retry settings for LLM calls
   retry:
     max_attempts: 3
     backoff_seconds: 2
+    
+    # Exponential backoff
+    exponential_backoff: true
+    
+    # Retry on these error types
+    retry_on_errors: ["RateLimitError", "APIError", "Timeout", "ServiceUnavailableError"]
 
 # Setup/Teardown Configuration
 setup_teardown:

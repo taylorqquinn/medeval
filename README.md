@@ -13,11 +13,23 @@ A comprehensive evaluation framework for testing clinical AI systems. MedEval pr
 - LLM Judge (semantic quality)
 - Calibration Analysis (Expected Calibration Error)
 
+✅ **Real OpenAI Integration**: Production-ready API integration
+- GPT-4, GPT-3.5-turbo, and other models
+- Automatic cost tracking with budget enforcement
+- Rate limiting to prevent quota exhaustion
+- Supports multiple models for comparison
+
 ✅ **Quality Gates**: Baseline comparison with pass/fail thresholds
 
 ✅ **Detailed Logging**: Complete execution traces with artifacts
 
 ✅ **Multiple Execution Modes**: Standard, Fast, Thorough, Debug
+
+✅ **CLI Interface**: Professional command-line tool
+- Run evaluations
+- View reports
+- Compare runs
+- Manage old logs
 
 ✅ **Self-Contained Runs**: Each run creates a timestamped folder with all logs and artifacts
 
@@ -32,17 +44,39 @@ cd medeval
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Optional: For real OpenAI integration
+pip install openai>=1.0.0
 ```
 
-### Running Tests
+### Basic Usage
 
+**Test Mode (No API calls):**
 ```bash
-# Run the full integration test
-python tests\software\test_full_pipeline.py
+# Set Python path
+$env:PYTHONPATH="$pwd\src"  # Windows
+export PYTHONPATH="$PWD/src"  # Linux/Mac
 
-# Or run with CLI (coming soon)
+# Run evaluation
 python -m medeval run --dataset datasets/clinical_cases.jsonl
 ```
+
+**Production Mode (Real OpenAI API):**
+```bash
+# Set API key
+$env:OPENAI_API_KEY="sk-your-key-here"
+
+# Enable OpenAI in config
+# Edit medeval_config.yaml: llm.client_type: "openai"
+
+# Run evaluation
+python -m medeval run --dataset datasets/clinical_cases.jsonl --mode standard
+
+# View cost report
+python -m medeval report --run <run_id>
+```
+
+See [OPENAI_INTEGRATION_GUIDE.md](OPENAI_INTEGRATION_GUIDE.md) for detailed configuration options.
 
 ### Running Unit Tests
 

@@ -201,6 +201,21 @@ def run(dataset_path: str, baseline_path: Optional[str] = None,
         except Exception as e:
             logger.error(f"Failed to save quality gate results: {e}")
     
+    # Save cost report if using OpenAI client with cost tracking
+    if save_artifacts and artifacts_dir and llm_client:
+        try:
+            # Check if this is an OpenAI client with cost tracking
+            if hasattr(llm_client, 'get_cost_report'):
+                cost_report = llm_client.get_cost_report()
+                if cost_report:
+                    cost_file = artifacts_dir / "cost_report.json"
+                    with open(cost_file, 'w', encoding='utf-8') as fh:
+                        json.dump(cost_report, fh, indent=2)
+                    logger.info(f"Cost report saved to: {cost_file}")
+                    logger.info(f"Total API cost: ${cost_report.get('total_cost_usd', 0):.6f}")
+        except Exception as e:
+            logger.error(f"Failed to save cost report: {e}")
+    
     logger.info("="*60)
     logger.info("Evaluation pipeline completed")
     logger.info("="*60)
