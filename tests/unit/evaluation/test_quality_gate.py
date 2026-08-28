@@ -1,0 +1,41 @@
+"""Tests for quality gate logic that compares aggregated metrics to baselines.
+
+These tests document expected failure messages for missing or non-numeric metrics
+and successful pass/fail behavior when thresholds are met or not.
+"""
+
+import os
+import sys
+import pytest
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+SRC = os.path.join(ROOT, 'src')
+if SRC not in sys.path:
+    sys.path.insert(0, SRC)
+
+from medeval.evaluation.quality_gate import evaluate_quality_gate
+
+
+def test_quality_gate_pass_and_fail():
+    aggregated = {'med_f1':0.8, 'llm_judge_score':0.9, 'required_facts_score':1.0, 'forbidden_score':1.0}
+    baseline = {'med_f1':0.75, 'llm_judge_score':0.5}
+    passed, failures = evaluate_quality_gate(aggregated, baseline)
+    assert passed
+    assert failures == []
+
+    baseline2 = {'med_f1':0.9}
+    passed2, failures2 = evaluate_quality_gate(aggregated, baseline2)
+    assert not passed2
+    assert len(failures2) == 1
+
+
+def test_quality_gate_missing_and_nonnumeric():
+    aggregated = {'med_f1': 0.8}
+    baseline = {'med_f1': 0.7, 'llm_judge_score': 0.5}
+    passed, failures = evaluate_quality_gate(aggregated, baseline)
+    assert not passed
+    assert any('missing' in f for f in failures)
+
+    aggregated_bad = {'med_f1': 'not-a-number'}
+    passed2, failures2 = evaluate_quality_gate(aggregated_bad, {'med_f1': 0.5})
+    assert not passed2
+    assert any('non-numeric' in f for f in failures2)

@@ -40,6 +40,18 @@ def aggregate(case_level_results: List[Dict[str, Any]]) -> Dict[str, Any]:
                 continue
 
     def _compute_ece(confidences_list, correctness_list, n_bins=10):
+        """Compute Expected Calibration Error (ECE) using histogram binning.
+
+        ECE is the weighted average over bins of the absolute difference between
+        the average confidence and observed accuracy in that bin.
+
+        Args:
+            confidences_list: list of floats in [0,1] representing model confidences.
+            correctness_list: list of 0.0/1.0 values indicating correctness.
+            n_bins: number of equal-width bins to use.
+        Returns:
+            ece value as float, or None if confidences_list is empty.
+        """
         if not confidences_list:
             return None
         total = len(confidences_list)

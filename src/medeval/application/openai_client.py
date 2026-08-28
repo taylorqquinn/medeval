@@ -53,7 +53,12 @@ class OpenAIClient:
                 self._is_new = False
 
     def _extract_text(self, resp):
-        # Try several common response shapes for robustness
+        """Extract text content from several OpenAI response shapes.
+
+        The OpenAI API has had multiple response formats; attempt common access
+        patterns and fall back to stringifying the response. This helper is
+        intentionally defensive and should not raise.
+        """
         try:
             return resp.choices[0].message.content
         except Exception:
@@ -73,6 +78,19 @@ class OpenAIClient:
         return str(resp)
 
     def generate(self, prompt: str) -> str:
+        """Generate a summary for the given prompt using OpenAI.
+
+        This method attempts the newer OpenAI client shape first, falls back to the
+        older ChatCompletion API, and finally to a deterministic local heuristic so
+        tests and CI can remain reliable even when the OpenAI package or API key is
+        not available.
+
+        Args:
+            prompt: Clinical text to summarize.
+
+        Returns:
+            A short summary string (possibly empty).
+        """
         system_prompt = "You are a helpful assistant that summarizes clinical text."
         user_prompt = f"Summarize the following clinical text:\n\n{prompt}"
 
@@ -108,6 +126,13 @@ class OpenAIClient:
         return " ".join(tokens[:80])
 
     def judge(self, gold: str, pred: str) -> float:
+        """Ask OpenAI to judge similarity between gold and pred and parse a numeric score.
+
+        Attempts the same multi-shape calls as generate: new-style client, older ChatCompletion,
+        then falls back to token-overlap heuristic identical to LLMClient.judge for deterministic behavior.
+
+        Returns float in [0.0, 1.0]; if parsing fails, returns fallback heuristic.
+        """
         prompt = (
             "You are an objective evaluator. "
             "Rate how well the prediction matches the gold summary on a scale from 0.0 to 1.0. "
