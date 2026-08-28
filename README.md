@@ -37,6 +37,26 @@ A comprehensive evaluation framework for testing clinical AI systems. MedEval pr
 
 ### Installation
 
+**Option A: Using Poetry (Recommended)**
+
+```bash
+# Clone the repository
+git clone https://github.com/taylorqquinn/medeval.git
+cd medeval
+
+# Install Poetry (if not already installed)
+# Windows PowerShell:
+(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+
+# Install dependencies (includes OpenAI)
+.\poetry.ps1 install --extras openai
+
+# Or without the helper script:
+poetry install --extras openai
+```
+
+**Option B: Using pip**
+
 ```bash
 # Clone the repository
 git clone https://github.com/taylorqquinn/medeval.git
@@ -51,7 +71,22 @@ pip install openai>=1.0.0
 
 ### Basic Usage
 
-**Test Mode (No API calls):**
+**With Poetry:**
+```bash
+# Run evaluation
+.\poetry.ps1 run medeval run --dataset datasets/clinical_cases.jsonl
+
+# List recent runs
+.\poetry.ps1 run medeval list-runs
+
+# View detailed report
+.\poetry.ps1 run medeval report --run <run_id>
+
+# Run tests
+.\poetry.ps1 run python tests\software\test_full_pipeline.py
+```
+
+**Without Poetry (Test Mode - No API calls):**
 ```bash
 # Set Python path
 $env:PYTHONPATH="$pwd\src"  # Windows
@@ -69,7 +104,10 @@ $env:OPENAI_API_KEY="sk-your-key-here"
 # Enable OpenAI in config
 # Edit medeval_config.yaml: llm.client_type: "openai"
 
-# Run evaluation
+# Run evaluation with Poetry
+.\poetry.ps1 run medeval run --dataset datasets/clinical_cases.jsonl --mode standard
+
+# Or without Poetry
 python -m medeval run --dataset datasets/clinical_cases.jsonl --mode standard
 
 # View cost report

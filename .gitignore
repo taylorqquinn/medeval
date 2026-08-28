@@ -218,3 +218,7 @@ __marimo__/
 .streamlit/secrets.toml
 .logs/
 tests/software/test_results.json
+
+# Poetry
+.venv/
+poetry.lock
