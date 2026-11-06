@@ -1,0 +1,208 @@
+# MedEval Configuration
+# This file controls logging, artifacts, test execution modes, and runtime settings
+
+# Logging Configuration
+logging:
+  # Base directory for all logs (relative to project root or absolute path)
+  # Each run creates a timestamped folder: .logs/medeval_YYYYMMDD_HHMMSS/
+  #   ├── logs/medeval_YYYYMMDD_HHMMSS.log
+  #   └── artifacts/*.json
+  log_dir: ".logs"
+  
+  # Log file name pattern (supports timestamp substitution)
+  log_file: "medeval_{timestamp}.log"
+  
+  # Console logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  console_level: "INFO"
+  
+  # File logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file_level: "DEBUG"
+  
+  # Log format string
+  format: "[%(asctime)s] %(name)s - %(levelname)s - %(message)s"
+  
+  # Date format for timestamps
+  date_format: "%Y-%m-%d %H:%M:%S"
+  
+  # Maximum log file size in MB (0 = no rotation)
+  max_size_mb: 50
+  
+  # Number of backup log files to keep
+  backup_count: 5
+
+# Artifacts Configuration
+artifacts:
+  # Artifacts are stored in each run's folder: .logs/medeval_YYYYMMDD_HHMMSS/artifacts/
+  # (No need to specify artifacts_dir separately - it's created within the run folder)
+  
+  # Store per-case predictions as JSON
+  save_predictions: true
+  
+  # Store aggregated metrics as JSON
+  save_metrics: true
+  
+  # Store quality gate results
+  save_quality_gate: true
+  
+  # Store console reports as text files
+  save_reports: true
+
+# Execution Modes
+execution:
+  # Mode: 'standard', 'fast', 'thorough', 'debug'
+  mode: "standard"
+  
+  # Modes configuration
+  modes:
+    # Standard mode: normal execution with all evaluators
+    standard:
+      enable_all_evaluators: true
+      parallel_execution: false
+      detailed_logging: false
+    
+    # Fast mode: skip expensive evaluators, minimal logging
+    fast:
+      enable_all_evaluators: false
+      skip_evaluators: ["LLMJudge", "Calibration"]
+      parallel_execution: true
+      detailed_logging: false
+    
+    # Thorough mode: all evaluators, detailed logging, save everything
+    thorough:
+      enable_all_evaluators: true
+      parallel_execution: false
+      detailed_logging: true
+      save_intermediate_results: true
+    
+    # Debug mode: maximum verbosity, save all intermediate states
+    debug:
+      enable_all_evaluators: true
+      parallel_execution: false
+      detailed_logging: true
+      save_intermediate_results: true
+      log_level_override: "DEBUG"
+
+# Dataset Configuration
+dataset:
+  # Default dataset path (relative to project root)
+  default_path: "datasets/clinical_cases.jsonl"
+  
+  # Default baseline path
+  default_baseline: "baselines/production.json"
+  
+  # Cache loaded datasets
+  enable_cache: false
+
+# LLM Configuration
+llm:
+  # Client type: 'deterministic', 'openai', 'custom'
+  client_type: "deterministic"
+  
+  # OpenAI settings (when client_type='openai')
+  openai:
+    # API key source: 'env' (from OPENAI_API_KEY), 'file' (from api_key_file), or 'inline' (from api_key)
+    api_key_source: "env"
+    
+    # Path to API key file (when api_key_source='file')
+    # Example: "C:/Users/YourName/.openai/api_key.txt"
+    api_key_file: null
+    
+    # Inline API key (NOT RECOMMENDED - use environment variable instead)
+    # Only for testing in secure environments
+    api_key: null
+    
+    # Model to use for generation and judging
+    # Options: gpt-4, gpt-4-turbo, gpt-3.5-turbo, gpt-4o, gpt-4o-mini
+    model: "gpt-3.5-turbo"
+    
+    # Alternative model for judging (optional - uses main model if not specified)
+    judge_model: null
+    
+    # Temperature (0.0 = deterministic, higher = more creative)
+    temperature: 0.0
+    
+    # Maximum tokens for generation
+    max_tokens: 256
+    
+    # Maximum tokens for judge responses
+    judge_max_tokens: 8
+    
+    # Organization ID (optional)
+    organization: null
+    
+    # Rate limiting
+    rate_limit:
+      # Enable rate limiting
+      enabled: true
+      
+      # Maximum requests per minute
+      max_requests_per_minute: 60
+      
+      # Maximum tokens per minute (set to null for no limit)
+      max_tokens_per_minute: 90000
+      
+      # Delay between requests in seconds
+      min_delay_seconds: 1.0
+    
+    # Cost tracking
+    cost_tracking:
+      # Enable cost tracking
+      enabled: true
+      
+      # Budget limits (set to null for no limit)
+      max_cost_per_run: 1.0  # Maximum cost in USD per evaluation run
+      max_cost_per_case: 0.05  # Maximum cost in USD per clinical case
+      
+      # Pricing per 1K tokens (update these based on current OpenAI pricing)
+      pricing:
+        gpt-4:
+          input: 0.03
+          output: 0.06
+        gpt-4-turbo:
+          input: 0.01
+          output: 0.03
+        gpt-3.5-turbo:
+          input: 0.0005
+          output: 0.0015
+        gpt-4o:
+          input: 0.005
+          output: 0.015
+        gpt-4o-mini:
+          input: 0.00015
+          output: 0.0006
+      
+      # Save cost reports to artifacts
+      save_cost_report: true
+    
+  # Retry settings for LLM calls
+  retry:
+    max_attempts: 3
+    backoff_seconds: 2
+    
+    # Exponential backoff
+    exponential_backoff: true
+    
+    # Retry on these error types
+    retry_on_errors: ["RateLimitError", "APIError", "Timeout", "ServiceUnavailableError"]
+
+# Setup/Teardown Configuration
+setup_teardown:
+  # Enable setup phase
+  enable_setup: true
+  
+  # Enable teardown phase
+  enable_teardown: true
+  
+  # Clean old logs on setup (keep N most recent runs)
+  cleanup_old_logs: true
+  max_log_runs: 10
+  
+  # Validate environment on setup
+  validate_environment: true
+  
+  # Create summary report on teardown
+  create_summary: true
+  
+  # Archive artifacts on teardown
+  archive_artifacts: false
+  archive_format: "zip"  # 'zip' or 'tar.gz'

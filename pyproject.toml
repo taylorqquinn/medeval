@@ -1,11 +1,64 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
+[tool.poetry]
 name = "medeval"
 version = "0.1.0"
-description = "Simple AI evaluation platform for clinical summaries"
+description = "A comprehensive evaluation framework for testing clinical AI systems"
+authors = ["Taylor Quinn <taylorqquinn@users.noreply.github.com>"]
 readme = "README.md"
-requires-python = ">=3.8"
-dependencies = ["openai"]
+license = "MIT"
+repository = "https://github.com/taylorqquinn/medeval"
+keywords = ["medical", "ai", "evaluation", "clinical", "healthcare"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Programming Language :: Python :: 3.12",
+]
+packages = [{include = "medeval", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pyyaml = ">=6.0"
+openai = {version = ">=1.0.0", optional = true}
+
+[tool.poetry.extras]
+openai = ["openai"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-cov = "^6.0.0"
+flake8 = "^7.0.0"
+
+[tool.poetry.scripts]
+medeval = "medeval.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--strict-markers",
+    "--tb=short",
+]
+
+[tool.coverage.run]
+source = ["src/medeval"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
