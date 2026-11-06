@@ -1,12 +1,13 @@
 """Evaluator that ensures forbidden facts are not mentioned."""
 
 import logging
+from typing import Any
+
 from medeval.evaluators.base import Evaluator
 from medeval.models import ClinicalCase, Prediction
-from typing import Dict, Any
 
 # Module logger
-logger = logging.getLogger('medeval.evaluators.forbidden_facts')
+logger = logging.getLogger("medeval.evaluators.forbidden_facts")
 
 
 class ForbiddenFactsEvaluator(Evaluator):
@@ -15,7 +16,7 @@ class ForbiddenFactsEvaluator(Evaluator):
     Reports a binary score (1.0 when no forbidden facts found) and the list of found items.
     """
 
-    def evaluate(self, case: ClinicalCase, prediction: Prediction) -> Dict[str, Any]:
+    def evaluate(self, case: ClinicalCase, prediction: Prediction) -> dict[str, Any]:
         """Find forbidden facts mentioned in the prediction text.
 
         Args:
@@ -28,13 +29,13 @@ class ForbiddenFactsEvaluator(Evaluator):
               - forbidden_found: list of forbidden facts that appear in the text
         """
         logger.debug(f"Checking forbidden facts for case {case.id}")
-        
+
         forbidden = case.forbidden_facts or []
         found = [f for f in forbidden if f.lower() in prediction.summary_text.lower()]
         score = 0.0 if found else 1.0
-        
+
         logger.debug(f"Forbidden facts: {len(forbidden)}, Found: {len(found)}, Score: {score:.1f}")
         if found:
             logger.warning(f"Forbidden facts found: {found}")
-        
+
         return {"forbidden_score": score, "forbidden_found": found}

@@ -1,12 +1,13 @@
 """Medication F1 evaluator for structured medication lists."""
 
 import logging
+from typing import Any
+
 from medeval.evaluators.base import Evaluator
 from medeval.models import ClinicalCase, Prediction
-from typing import Dict, Any
 
 # Module logger
-logger = logging.getLogger('medeval.evaluators.medication_f1')
+logger = logging.getLogger("medeval.evaluators.medication_f1")
 
 
 def _normalize_med_list(lst):
@@ -33,7 +34,7 @@ class MedicationF1Evaluator(Evaluator):
           * recall = 1.0
     """
 
-    def evaluate(self, case: ClinicalCase, prediction: Prediction) -> Dict[str, Any]:
+    def evaluate(self, case: ClinicalCase, prediction: Prediction) -> dict[str, Any]:
         """Evaluate medication overlap for a single case.
 
         Args:
@@ -47,18 +48,18 @@ class MedicationF1Evaluator(Evaluator):
               - med_f1: float
         """
         logger.debug(f"Evaluating medication F1 for case {case.id}")
-        
+
         gold = _normalize_med_list(case.medications)
         pred = _normalize_med_list(prediction.medications)
-        
+
         logger.debug(f"Gold medications: {gold}")
         logger.debug(f"Predicted medications: {pred}")
-        
+
         tp = len(gold & pred)
         precision = tp / len(pred) if pred else (1.0 if not gold else 0.0)
         recall = tp / len(gold) if gold else 1.0
         f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
-        
+
         logger.debug(f"TP={tp}, Precision={precision:.3f}, Recall={recall:.3f}, F1={f1:.3f}")
-        
+
         return {"med_precision": precision, "med_recall": recall, "med_f1": f1}

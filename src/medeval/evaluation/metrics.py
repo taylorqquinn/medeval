@@ -1,9 +1,10 @@
 """Aggregation helpers for evaluator outputs."""
 
-from typing import List, Dict, Any
 import numbers
+from typing import Any
 
-def aggregate(case_level_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+
+def aggregate(case_level_results: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate per-case evaluator outputs into dataset-level metrics.
 
     Numeric metrics are averaged; lists are concatenated.
@@ -32,10 +33,10 @@ def aggregate(case_level_results: List[Dict[str, Any]]) -> Dict[str, Any]:
     confidences = []
     correctness = []
     for res in case_level_results:
-        if 'confidence' in res and 'is_correct' in res:
+        if "confidence" in res and "is_correct" in res:
             try:
-                confidences.append(float(res['confidence']))
-                correctness.append(1.0 if res['is_correct'] else 0.0)
+                confidences.append(float(res["confidence"]))
+                correctness.append(1.0 if res["is_correct"] else 0.0)
             except Exception:
                 continue
 
@@ -59,7 +60,11 @@ def aggregate(case_level_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         for i in range(n_bins):
             lower = i / n_bins
             upper = (i + 1) / n_bins
-            idxs = [j for j, c in enumerate(confidences_list) if (c >= lower and c < upper) or (i == n_bins - 1 and c <= upper)]
+            idxs = [
+                j
+                for j, c in enumerate(confidences_list)
+                if (c >= lower and c < upper) or (i == n_bins - 1 and c <= upper)
+            ]
             if not idxs:
                 continue
             avg_conf = sum(confidences_list[j] for j in idxs) / len(idxs)
@@ -69,6 +74,6 @@ def aggregate(case_level_results: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     ece = _compute_ece(confidences, correctness, n_bins=10)
     if ece is not None:
-        aggregated['calibration_ece'] = ece
+        aggregated["calibration_ece"] = ece
 
     return aggregated
