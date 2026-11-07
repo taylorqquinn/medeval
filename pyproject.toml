@@ -1,37 +1,41 @@
 [tool.poetry]
-name = "medeval"
-version = "0.1.0"
-description = "A comprehensive evaluation framework for testing clinical AI systems"
+name = "medeval-framework"
+version = "0.2.0"
+description = "Core evaluation framework for testing clinical AI systems - framework only (no CLI)"
 authors = ["Taylor Quinn <taylorqquinn@users.noreply.github.com>"]
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/taylorqquinn/medeval"
-keywords = ["medical", "ai", "evaluation", "clinical", "healthcare"]
+keywords = ["medical", "ai", "evaluation", "clinical", "healthcare", "framework"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Healthcare Industry",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Programming Language :: Python :: 3.12",
 ]
 packages = [{include = "medeval", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.12"
-pyyaml = ">=6.0"
-openai = {version = ">=1.0.0", optional = true}
-
-[tool.poetry.extras]
-openai = ["openai"]
+# No optional dependencies - framework is lean and focused
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
 pytest-cov = "^6.0.0"
 flake8 = "^7.0.0"
+black = "^24.0.0"
+ruff = "^0.16.0"
+pylint = "^4.0.0"
 
-[tool.poetry.scripts]
-medeval = "medeval.cli:main"
+# Plugin system - custom evaluators register here
+# Example: my-evaluators = "my_package.evaluators:MyEvaluator"
+[tool.poetry.plugins."medeval.evaluators"]
+# Built-in evaluators are imported directly, not via plugins
+# Third-party packages can register custom evaluators here
 
 [build-system]
 requires = ["poetry-core"]
@@ -61,4 +65,70 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
 ]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+(
+  /\.venv/
+  | /__pycache__/
+)
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", "__pycache__"]
+
+[tool.ruff.lint]
+# E/F = pyflakes+pycodestyle errors, I = isort, UP = pyupgrade, B = bugbear
+select = ["E", "F", "I", "UP", "B"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# Tests insert `src` onto sys.path before importing medeval; that import
+# has to come after the sys.path.insert() call, which trips E402.
+"tests/**/*.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["medeval"]
+
+[tool.ruff.format]
+line-ending = "auto"
+
+[tool.pylint.main]
+py-version = "3.12"
+source-roots = ["src"]
+jobs = 0
+
+[tool.pylint."messages control"]
+disable = [
+    "missing-module-docstring",
+    "too-few-public-methods",
+    "duplicate-code",
+    # Intentional style used consistently across the codebase: f-strings inside
+    # logger.debug/info/warning calls. Lazy %-formatting would only save work
+    # when the log level is disabled, which is not a concern for this project.
+    "logging-fstring-interpolation",
+    # medeval.evaluators.base.list_available_evaluators() intentionally does a
+    # deferred `from medeval.evaluators import (...)` inside a function body to
+    # avoid a real circular import at module-load time. Pylint's static
+    # analysis flags the module-level cycle anyway; this is a false positive.
+    "cyclic-import",
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.design]
+max-args = 8
+# EntityExtractionEvaluator.evaluate() is a single cohesive heuristic-parsing
+# routine; splitting it up would not improve readability enough to justify
+# the churn, so the local-variable budget is raised slightly instead.
+max-locals = 20
+# ClinicalCase and Prediction are plain dataclasses that intentionally model
+# every field a test case / model output can carry (RAG, safety, performance).
+max-attributes = 15
 

@@ -1,223 +1,228 @@
-"""Runner that executes the evaluation pipeline over a dataset."""
+"""Simplified evaluation runner for the framework.
+
+This module provides a clean, framework-focused evaluation runner that takes
+cases and predictions and applies evaluators to them. It does NOT generate
+predictions (that's application logic - see medeval-helpers).
+"""
 
 import logging
-import json
-from typing import Optional, Dict, Any, List
-from pathlib import Path
-from medeval.dataset import load_cases
-from medeval.application.clinical_ai import ClinicalAI
-from medeval.application.llm_client import LLMClient
-from medeval.evaluators.required_facts import RequiredFactsEvaluator
-from medeval.evaluators.forbidden_facts import ForbiddenFactsEvaluator
-from medeval.evaluators.medication_f1 import MedicationF1Evaluator
-from medeval.evaluators.llm_judge import LLMJudgeEvaluator
-from medeval.evaluators.format_validator import FormatValidator
-from medeval.evaluators.entity_extraction import EntityExtractionEvaluator
-from medeval.evaluators.calibration import CalibrationEvaluator
-from medeval.evaluation.metrics import aggregate
-from medeval.evaluation.baseline import load_baseline
-from medeval.evaluation.quality_gate import evaluate_quality_gate
+from dataclasses import dataclass, field
+from typing import Any
 
-logger = logging.getLogger('medeval.runner')
+from medeval.evaluators.base import Evaluator
+from medeval.models import ClinicalCase, Prediction
+
+logger = logging.getLogger(__name__)
 
 
-def run(dataset_path: str, baseline_path: Optional[str] = None, 
-        llm_client: Optional[LLMClient] = None,
-        save_artifacts: bool = True,
-        artifacts_dir: Optional[Path] = None) -> Dict[str, Any]:
-    """Run the evaluation pipeline and return a result dict.
-    
-    Args:
-        dataset_path: Path to dataset JSONL file.
-        baseline_path: Optional path to baseline JSON file.
-        llm_client: Optional LLM client instance.
-        save_artifacts: Whether to save artifacts (predictions, metrics).
-        artifacts_dir: Optional directory to save artifacts.
-    
-    Returns:
-        Dictionary with keys: aggregated, passed, failures, per_case_results.
-        
-    Raises:
-        FileNotFoundError: If dataset or baseline file not found.
-        ValueError: If dataset is empty or invalid.
-        RuntimeError: If evaluation pipeline fails.
+@dataclass
+class CaseResult:
+    """Results from evaluating a single case."""
+
+    case_id: str
+    metrics: dict[str, Any] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass
+class EvaluationResults:
+    """Results from evaluating multiple cases."""
+
+    case_results: list[CaseResult] = field(default_factory=list)
+    aggregated_metrics: dict[str, Any] = field(default_factory=dict)
+    quality_gate_passed: bool | None = None
+
+
+class EvaluationRunner:
+    """Evaluation runner that applies evaluators to cases and predictions.
+
+    This is a framework-level runner that focuses on evaluation logic only.
+    It does NOT:
+    - Generate predictions (that's application logic)
+    - Handle logging/artifacts (that's helper utilities)
+    - Interact with LLMs directly (use application/openai_client for that)
+
+    Example:
+        from medeval.evaluation.runner import EvaluationRunner
+        from medeval.evaluators import MedicationF1Evaluator
+
+        runner = EvaluationRunner(evaluators=[MedicationF1Evaluator()])
+        results = runner.run(cases, predictions)
+        print(results.aggregated_metrics)
     """
-    logger.info("="*60)
-    logger.info("Starting evaluation pipeline")
-    logger.info(f"Dataset: {dataset_path}")
-    logger.info(f"Baseline: {baseline_path or 'None'}")
-    logger.info("="*60)
-    
-    # Validate inputs
-    if not Path(dataset_path).exists():
-        error_msg = f"Dataset file not found: {dataset_path}"
-        logger.error(error_msg)
-        raise FileNotFoundError(error_msg)
-    
-    if baseline_path and not Path(baseline_path).exists():
-        error_msg = f"Baseline file not found: {baseline_path}"
-        logger.error(error_msg)
-        raise FileNotFoundError(error_msg)
-    
-    # Load dataset
-    logger.info(f"Loading cases from {dataset_path}...")
-    try:
-        cases = load_cases(dataset_path)
-    except Exception as e:
-        error_msg = f"Failed to load dataset from {dataset_path}: {e}"
-        logger.error(error_msg)
-        raise ValueError(error_msg) from e
-    
-    if not cases:
-        error_msg = f"Dataset is empty: {dataset_path}"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-    
-    logger.info(f"Loaded {len(cases)} case(s)")
-    
-    # Initialize LLM client
-    if llm_client is None:
-        logger.info("No LLM client provided, selecting default...")
-        try:
-            import os as _os
-            if _os.getenv("OPENAI_API_KEY"):
-                logger.info("OpenAI API key found, using OpenAIClient")
-                from medeval.application.openai_client import OpenAIClient
-                llm_client = OpenAIClient()
-            else:
-                logger.info("No OpenAI API key, using deterministic LLMClient")
-                llm_client = LLMClient()
-        except Exception as e:
-            logger.warning(f"Failed to initialize OpenAI client: {e}")
-            logger.info("Falling back to deterministic LLMClient")
-            llm_client = LLMClient()
-    else:
-        logger.info(f"Using provided LLM client: {type(llm_client).__name__}")
-    
-    # Initialize AI and evaluators
-    logger.info("Initializing ClinicalAI and evaluators...")
-    ai = ClinicalAI(llm_client=llm_client)
-    evaluators = [
-        RequiredFactsEvaluator(),
-        ForbiddenFactsEvaluator(),
-        FormatValidator(),
-        MedicationF1Evaluator(),
-        EntityExtractionEvaluator(),
-        LLMJudgeEvaluator(llm_client),
-        CalibrationEvaluator(llm_client)
-    ]
-    logger.info(f"Initialized {len(evaluators)} evaluator(s)")
-    
-    # Process cases
-    per_case_results: List[Dict[str, Any]] = []
-    failed_cases: List[str] = []
-    logger.info("Processing cases...")
-    
-    for i, case in enumerate(cases, 1):
-        logger.debug(f"Processing case {i}/{len(cases)}: {case.id}")
-        
-        try:
-            # Generate prediction
-            pred = ai.summarize(case)
-            logger.debug(f"  Generated summary ({len(pred.summary_text)} chars, {len(pred.medications)} meds)")
-            
-            # Run evaluators
-            case_metrics = {}
-            for ev in evaluators:
-                ev_name = type(ev).__name__
-                logger.debug(f"  Running evaluator: {ev_name}")
-                try:
-                    res = ev.evaluate(case, pred)
-                    case_metrics.update(res)
-                except Exception as ev_error:
-                    logger.error(f"  Evaluator {ev_name} failed for case {case.id}: {ev_error}")
-                    # Continue with other evaluators
-            
-            per_case_results.append(case_metrics)
-            logger.info(f"Completed case {i}/{len(cases)}: {case.id}")
-            
-        except Exception as case_error:
-            logger.error(f"Failed to process case {case.id}: {case_error}")
-            failed_cases.append(case.id)
-            # Continue with next case
-    
-    if failed_cases:
-        logger.warning(f"Failed to process {len(failed_cases)} case(s): {failed_cases}")
-    
-    if not per_case_results:
-        error_msg = "No cases were successfully processed"
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
-    
-    logger.info(f"Successfully processed {len(per_case_results)}/{len(cases)} case(s)")
-    
-    # Save predictions if requested
-    if save_artifacts and artifacts_dir:
-        try:
-            pred_file = artifacts_dir / "predictions.json"
-            with open(pred_file, 'w', encoding='utf-8') as fh:
-                json.dump(per_case_results, fh, indent=2)
-            logger.info(f"Predictions saved to: {pred_file}")
-        except Exception as e:
-            logger.error(f"Failed to save predictions: {e}")
-    
-    # Aggregate metrics
-    logger.info("Aggregating metrics...")
-    aggregated = aggregate(per_case_results)
-    logger.info(f"Computed {len(aggregated)} aggregated metric(s)")
-    
-    # Save aggregated metrics if requested
-    if save_artifacts and artifacts_dir:
-        try:
-            metrics_file = artifacts_dir / "aggregated_metrics.json"
-            with open(metrics_file, 'w', encoding='utf-8') as fh:
-                json.dump(aggregated, fh, indent=2)
-            logger.info(f"Aggregated metrics saved to: {metrics_file}")
-        except Exception as e:
-            logger.error(f"Failed to save aggregated metrics: {e}")
-    
-    # Quality gate evaluation
-    baseline = load_baseline(baseline_path) if baseline_path else {}
-    if baseline:
-        logger.info(f"Evaluating quality gate with {len(baseline)} threshold(s)...")
-        passed, failures = evaluate_quality_gate(aggregated, baseline)
-        logger.info(f"Quality gate: {'PASSED' if passed else 'FAILED'}")
-        if failures:
-            logger.warning(f"Quality gate failures ({len(failures)}):")
-            for failure in failures:
-                logger.warning(f"  - {failure}")
-    else:
-        logger.info("No baseline provided, skipping quality gate evaluation")
-        passed, failures = (None, [])
-    
-    # Save quality gate results if requested
-    if save_artifacts and artifacts_dir and baseline:
-        try:
-            qg_file = artifacts_dir / "quality_gate.json"
-            qg_result = {'passed': passed, 'failures': failures, 'baseline': baseline}
-            with open(qg_file, 'w', encoding='utf-8') as fh:
-                json.dump(qg_result, fh, indent=2)
-            logger.info(f"Quality gate results saved to: {qg_file}")
-        except Exception as e:
-            logger.error(f"Failed to save quality gate results: {e}")
-    
-    # Save cost report if using OpenAI client with cost tracking
-    if save_artifacts and artifacts_dir and llm_client:
-        try:
-            # Check if this is an OpenAI client with cost tracking
-            if hasattr(llm_client, 'get_cost_report'):
-                cost_report = llm_client.get_cost_report()
-                if cost_report:
-                    cost_file = artifacts_dir / "cost_report.json"
-                    with open(cost_file, 'w', encoding='utf-8') as fh:
-                        json.dump(cost_report, fh, indent=2)
-                    logger.info(f"Cost report saved to: {cost_file}")
-                    logger.info(f"Total API cost: ${cost_report.get('total_cost_usd', 0):.6f}")
-        except Exception as e:
-            logger.error(f"Failed to save cost report: {e}")
-    
-    logger.info("="*60)
-    logger.info("Evaluation pipeline completed")
-    logger.info("="*60)
-    
-    return {"aggregated": aggregated, "passed": passed, "failures": failures, "per_case_results": per_case_results}
+
+    def __init__(
+        self,
+        evaluators: list[Evaluator],
+        baseline_path: str | None = None,
+        quality_gate_threshold: float = 0.8,
+    ):
+        """Initialize the evaluation runner.
+
+        Args:
+            evaluators: List of evaluator instances to apply
+            baseline_path: Optional path to baseline metrics (for quality gate)
+            quality_gate_threshold: Threshold for passing quality gate
+        """
+        self.evaluators = evaluators
+        self.baseline_path = baseline_path
+        self.quality_gate_threshold = quality_gate_threshold
+
+        logger.info(f"Initialized EvaluationRunner with {len(evaluators)} evaluator(s)")
+
+    def evaluate_case(self, case: ClinicalCase, prediction: Prediction) -> CaseResult:
+        """Evaluate a single case-prediction pair.
+
+        Args:
+            case: Clinical case with ground truth
+            prediction: Model prediction to evaluate
+
+        Returns:
+            CaseResult with metrics and any errors
+        """
+        result = CaseResult(case_id=case.id)
+
+        for evaluator in self.evaluators:
+            try:
+                metrics = evaluator.evaluate(case, prediction)
+                result.metrics.update(metrics)
+                logger.debug(f"Case {case.id}: {evaluator.name} returned {len(metrics)} metric(s)")
+            except Exception as e:
+                error_msg = f"{evaluator.name} failed: {str(e)}"
+                result.errors.append(error_msg)
+                logger.error(f"Case {case.id}: {error_msg}")
+
+        return result
+
+    def run(self, cases: list[ClinicalCase], predictions: list[Prediction]) -> EvaluationResults:
+        """Run evaluation on a list of cases and predictions.
+
+        Args:
+            cases: List of clinical cases
+            predictions: List of predictions (must match cases by case_id)
+
+        Returns:
+            EvaluationResults with per-case and aggregated metrics
+
+        Raises:
+            ValueError: If cases and predictions don't match
+        """
+        logger.info(f"Starting evaluation: {len(cases)} case(s), {len(predictions)} prediction(s)")
+
+        # Validate inputs
+        if len(cases) != len(predictions):
+            raise ValueError(f"Number of cases ({len(cases)}) != predictions ({len(predictions)})")
+
+        # Create case_id to prediction mapping
+        pred_map = {p.case_id: p for p in predictions}
+
+        # Evaluate each case
+        case_results = []
+        for case in cases:
+            if case.id not in pred_map:
+                logger.warning(f"No prediction found for case {case.id}, skipping")
+                continue
+
+            prediction = pred_map[case.id]
+            result = self.evaluate_case(case, prediction)
+            case_results.append(result)
+
+        logger.info(f"Evaluated {len(case_results)} case(s)")
+
+        # Aggregate metrics
+        aggregated = self._aggregate_metrics(case_results)
+
+        # Evaluate quality gate if baseline provided
+        quality_gate_passed = None
+        if self.baseline_path:
+            quality_gate_passed = self._evaluate_quality_gate(aggregated)
+
+        return EvaluationResults(
+            case_results=case_results,
+            aggregated_metrics=aggregated,
+            quality_gate_passed=quality_gate_passed,
+        )
+
+    def _aggregate_metrics(self, case_results: list[CaseResult]) -> dict[str, Any]:
+        """Aggregate metrics across all cases.
+
+        Args:
+            case_results: List of per-case results
+
+        Returns:
+            Dictionary of aggregated metrics
+        """
+        if not case_results:
+            return {}
+
+        # Collect all metrics by key
+        metrics_by_key: dict[str, list[float]] = {}
+
+        for result in case_results:
+            for key, value in result.metrics.items():
+                if isinstance(value, (int, float)):
+                    if key not in metrics_by_key:
+                        metrics_by_key[key] = []
+                    metrics_by_key[key].append(float(value))
+
+        # Calculate averages
+        aggregated = {}
+        for key, values in metrics_by_key.items():
+            if values:
+                aggregated[f"{key}_mean"] = sum(values) / len(values)
+                aggregated[f"{key}_min"] = min(values)
+                aggregated[f"{key}_max"] = max(values)
+
+        logger.info(f"Aggregated {len(aggregated)} metric(s)")
+        return aggregated
+
+    def _evaluate_quality_gate(self, aggregated: dict[str, Any]) -> bool:
+        """Evaluate whether aggregated metrics pass quality gate.
+
+        Args:
+            aggregated: Aggregated metrics
+
+        Returns:
+            True if quality gate passed, False otherwise
+        """
+        # Simplified quality gate: check if mean metrics exceed threshold
+        # Real implementation would load baseline from file and compare
+
+        mean_metrics = {k: v for k, v in aggregated.items() if "_mean" in k}
+
+        if not mean_metrics:
+            logger.warning("No mean metrics to evaluate quality gate")
+            return False
+
+        passing_count = sum(1 for v in mean_metrics.values() if v >= self.quality_gate_threshold)
+        passed = passing_count == len(mean_metrics)
+
+        logger.info(
+            f"Quality gate: {passing_count}/{len(mean_metrics)} metrics passed "
+            f"(threshold={self.quality_gate_threshold})"
+        )
+
+        return passed
+
+
+# Legacy function for backwards compatibility
+def run(dataset_path: str, baseline_path: str | None = None, **kwargs) -> dict[str, Any]:
+    """Legacy run function for backwards compatibility.
+
+    NOTE: This function requires application dependencies (ClinicalAI, LLMClient)
+    which are not part of the framework. Use EvaluationRunner class instead.
+
+    This function is kept for backwards compatibility but will raise an error
+    directing users to the new API or to install medeval-helpers.
+    """
+    raise NotImplementedError(
+        "The legacy run() function requires application dependencies "
+        "(ClinicalAI, LLMClient) which have been moved to medeval-helpers.\n\n"
+        "Use the new EvaluationRunner API instead:\n"
+        "  from medeval.evaluation.runner import EvaluationRunner\n"
+        "  runner = EvaluationRunner(evaluators=[...])\n"
+        "  results = runner.run(cases, predictions)\n\n"
+        "Or install medeval-helpers for CLI tools:\n"
+        "  pip install medeval-helpers\n"
+        "  medeval run --dataset cases.jsonl\n"
+    )

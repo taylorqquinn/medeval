@@ -1,8 +1,11 @@
 """Quality gate logic that determines pass/fail vs baseline."""
 
-from typing import Dict, Any, Tuple, List
+from typing import Any
 
-def evaluate_quality_gate(aggregated_metrics: Dict[str, Any], baseline: Dict[str, float]) -> Tuple[bool, List[str]]:
+
+def evaluate_quality_gate(
+    aggregated_metrics: dict[str, Any], baseline: dict[str, float]
+) -> tuple[bool, list[str]]:
     """Compare aggregated metrics against baseline thresholds.
 
     For each metric in baseline, the corresponding value is looked up in aggregated_metrics
@@ -31,5 +34,7 @@ def evaluate_quality_gate(aggregated_metrics: Dict[str, Any], baseline: Dict[str
             failures.append(f"Metric '{metric}' is non-numeric: {actual}")
             continue
         if actual_value < float(threshold):
-            failures.append(f"Metric '{metric}' {actual_value:.3f} < threshold {float(threshold):.3f}")
+            failures.append(
+                f"Metric '{metric}' {actual_value:.3f} < threshold {float(threshold):.3f}"
+            )
     return (len(failures) == 0, failures)

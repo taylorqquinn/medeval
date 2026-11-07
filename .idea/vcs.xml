@@ -2,5 +2,8 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../medAI" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../medevalHelpers" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../medevalTests" vcs="Git" />
   </component>
 </project>
